@@ -1,0 +1,278 @@
+---
+title: "Stat 4750 Final Project"
+author: "Angelina"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(DescTools)
+library(car)
+library(ggplot2)
+library(tidyverse)
+library(factoextra)
+library(cluster)
+library(randomForest)
+```
+
+## Data
+```{r}
+data <- read.csv("sample-data.csv")
+```
+
+  
+## Reaserch Question 1 
+Do annual GDP and GDP per capita differ between developed and developing countries across continents?
+
+- test for normality and MANOVA
+
+Data:
+```{r}
+#organizing data
+data1 <- data[,c(5,6,23,24)]
+
+europe_dg <- data1[data1$status == "Developing" & data1$Continent == "Europe", 1:2]
+europe_d <- data1[data1$status == "Developed" & data1$Continent == "Europe", 1:2]
+
+south_america_dg <- data1[data1$status == "Developing" & data1$Continent == "South America", 1:2]
+south_america_d <- data1[data1$status == "Developed" & data1$Continent == "South America", 1:2]
+
+africa_dg <- data1[data1$status == "Developing" & data1$Continent == "Africa", 1:2]
+africa_d <- data1[data1$status == "Developed" & data1$Continent == "Africa", 1:2]
+
+north_america_dg <- data1[data1$status == "Developing" & data1$Continent == "North America", 1:2]
+north_america_d <- data1[data1$status == "Developed" & data1$Continent == "North America", 1:2]
+
+asia_dg <- data1[data1$status == "Developing" & data1$Continent == "Asia", 1:2]
+asia_d <- data1[data1$status == "Developed" & data1$Continent == "Asia", 1:2]
+
+
+oceania_dg <- data1[data1$status == "Developing" & data1$Continent == "Oceania", 1:2]
+oceania_d <- data1[data1$status == "Developed" & data1$Continent == "Oceania", 1:2]
+```
+
+Check Normality:
+```{r}
+apply(europe_dg, 2, shapiro.test)
+apply(europe_d, 2, shapiro.test)
+apply(south_america_dg, 2, shapiro.test)
+apply(africa_dg, 2, shapiro.test)
+apply(north_america_dg, 2, shapiro.test)
+apply(north_america_d, 2, shapiro.test)
+apply(asia_dg, 2, shapiro.test)
+apply(asia_d, 2, shapiro.test)
+apply(oceania_d, 2, shapiro.test)
+```
+
+Looking at the Shapiro-Wilks normality test for the annual GDP and GDP per capita between developed and developing countries across continents, we see that most p-values are small, suggesting we reject the null. Meaning those variables do not follow a normal distribution. This is true of most of the data except North America developed, Asia developed, and Oceania developed. They have p-values higher than 0.05, suggesting we fail to reject the null. Meaning these variables follow a normal distribution.
+
+When looking at the normality first, we see if our data deviated from a normal distribution, and most of them did. Since MANOVA is not robust to violations of normality, this issue could potentially affect our results, so it is essential to consider it. However, it is important to state that our sample size is relatively large, and we can still proceed with the analysis according to the central limit theorem. 
+
+Manova:
+```{r}
+data1$status <- as.factor(data1$status)
+data1$Continent <- as.factor(data1$Continent) 
+
+fit.lm <- lm(cbind(Annual.GDP, GDP.per.capita)~ status+Continent, data1)
+
+summary(Manova(fit.lm))
+
+
+```
+
+Looking at our Manova, we see that for status, the Wilks p-value is < 2.22e-16, and for the continent, the Wilks p-value is < 2.22e-16. This suggests that countries categorized as developed versus developing have statistically different annual GDP and GDP per capita. Secondly, it indicates that countries across various continents also contribute to the GDP and GDP per capita differences.
+
+Answering our research question we can see from the Manova that annual GDP and GDP per capita differ between developed and developing countries across continents.
+
+## Research Question 2 
+What key economic factors can be identified that explain the most variation in CO2 emissions while reducing the complexity of the data? 
+
+- ggplot visualization and PCA
+
+
+Data: 
+```{r}
+data2 <- data[,c(5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 22)]
+```
+
+
+Correlation Analysis: 
+```{r}
+cor(data$CO2.Tons.per.capita, data$Annual.GDP)
+cor(data$CO2.Tons.per.capita, data$GDP.per.capita)
+cor(data$CO2.Tons.per.capita, data$Debt)
+cor(data$CO2.Tons.per.capita, data$Debt.Per.Capita)
+cor(data$CO2.Tons.per.capita, data$Deficit...M...)
+cor(data$CO2.Tons.per.capita, data$Expenditure..M...)
+cor(data$CO2.Tons.per.capita, data$Expenditure.Per.Capita)
+cor(data$CO2.Tons.per.capita, data$Exports)
+cor(data$CO2.Tons.per.capita, data$Exports...GDP)
+cor(data$CO2.Tons.per.capita, data$Imports)
+cor(data$CO2.Tons.per.capita, data$Imports...GDP)
+```
+
+When looking at the initial correlation between CO2 emissions per capita and all
+the economic variables, we mostly have positive correlations except with
+Deficit...M that has a weak negative correlation. We see strong positive 
+correlations with CO2 emissions and GDP per capita at 0.6965806 and 
+Debt per capita at 0.5028634. 
+
+Visualization of the Relationship: 
+```{r}
+long_data <- data2 |>
+  pivot_longer(cols = -CO2.Tons.per.capita, names_to = "Variable", values_to = "Value")
+
+ggplot(long_data, aes(x = Value, y = CO2.Tons.per.capita)) +
+  geom_jitter(alpha = 0.7, color = "orange", width = 0.2, height = 0.02) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  facet_wrap(~ Variable, scales = "free_x") +
+  labs(title = "Scatterplots: Economic Variables vs CO2 Emissions",
+       x = "Economic Variable Value", y = "CO2 Emissions (Tons per Capita)") +
+  theme_minimal()
+```
+
+Above is a visualization of the correlations we found in the first part. Now we 
+visually see that most of the correlations are positive except Deficit...M and 
+looking at the GPD per capita and Debt per capita, we see that the points are 
+closer along the line indicating a strong strength of correlation. 
+
+
+PCA:
+```{r}
+economic_data <- data2 |>
+  select(-CO2.Tons.per.capita)
+
+economic_data <- scale(economic_data)
+
+pca <- prcomp(economic_data, scale. = TRUE)
+
+summary(pca)
+
+pca$loadings <- pca$rotation%*%diag(pca$sdev)
+pca$loadings
+```
+
+The results state:
+
+- PC1 explains 36.56% of the data's total variance
+- I would use four components because PC4 captures 82.81% of the data's variance
+- PC1 is highly associated with Annual.GDP at 0.879296958, Debt at 0.890235356,
+Exports at 0.856682423, Imports at 0.926946005
+- PC2 is positively associated with Expenditure..M at 0.677678623, 
+Expenditure.Per.Capita at 0.676604134 and negatively associated with Exports...GDP 
+at -0.706263676, Imports...GDP at -0.709951328
+- We could continue to show which variables are highly associated with CO2 emissions
+but for now, we will stick with these and continue to look above. 
+
+Looking at the PCA regarding our research questions, we see which economic variables 
+are most related to CO2 emissions. PC1 captures GDP, debt, exports, and imports 
+which logically are all typically associated with higher CO2 emissions. The 
+component likely reflects the general economic activity and how it correlates 
+with CO2 emission. PC2 reflects newer economic activities like expenditure. Again, 
+this can be another cause/correlation to environmental outcomes. Overall, PC1 
+explains the largest population of variance, around 36.56% and might be the
+most relevant to CO2 emission, especially given the variables it outputted.
+
+## Research Question 3
+Can clustering methods group countries meaningfully based on their social indicators?
+
+- clustering
+
+Data: 
+```{r}
+data3 <- data[,c(17, 18, 19, 20, 21, 24)]
+
+data3$status <-ifelse(data3$status=="Developing",1,0)
+
+data3 <- na.omit(data3)
+
+data3 <- scale(data3)
+```
+
+K-Means Clustering:
+```{r}
+fviz_nbclust(data3, kmeans, method = "wss")
+
+```
+
+Looking at the plot shown above, I would choose 4 clusters because I see the shift(elbow) in the plot at 4 number of clusters k. 
+
+```{r}
+set.seed(1)
+
+km <- kmeans(data3, centers = 4)
+
+split(data$Country, km$cluster)
+
+```
+
+```{r}
+fviz_cluster(km, data = data3, geom = "point")
+
+```
+
+
+Looking at the clusters and the visualization we see it created 4 clusters done
+by the wss method. I would have to do further research about the 
+countries to find a good reason why the groups are put together. However, we do see 
+that most clusters represent the entire 15 variables of the country, showing 
+consistency among that country with respect to social indicators. However, there
+are some countries out of their 15 variables that are grouped in other clusters. 
+
+So, to answer the research question of can clustering methods group countries 
+meaningfully based on their social indicators, I would have to do further 
+factual research about the country to say yes or no. I see a pattern showing
+some meaningfulness of the clusters but some outliers in these groups.
+So overall, the clustering results show potential meaningful groupings of countries 
+based on their social indicators, but further investigation is needed to confirm whether 
+these groupings align with known factors.
+
+## Research Question 4
+How well can developed and developing statuses be classified using economic and 
+environmental variables?
+
+- two classification methods
+
+Data:
+```{r}
+data4 <- data[ ,c(5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 22, 24)]
+
+data4$status<-ifelse(data4$status=="Developing",1,0)
+
+```
+
+Logistic Regression:
+```{r, warning=FALSE}
+logr<-glm(status ~ Annual.GDP+GDP.per.capita+Debt+Debt.Per.Capita+Deficit...M...+Expenditure..M...+Expenditure.Per.Capita+Exports+Exports...GDP+Imports+Imports...GDP+CO2.Tons.per.capita,
+                   family=binomial, data=data4)
+
+summary(logr)
+
+```
+
+Logistic Regression Results: 
+
+- Intercept: p-value < 2e-16
+- GDP per capita, Debt.Per.Capita, Expenditure..M..., Expenditure.Per.Capita, and CO2.Tons.per.capita are significant.
+- Other variables are not statistically significant 
+- Null deviance: 1512.75
+- Residual deviance:  657.59
+- AIC: 683.59
+
+Random Forrest:
+```{r, warning= FALSE}
+randomf <- randomForest(status ~ Annual.GDP+GDP.per.capita+Debt+Debt.Per.Capita+Expenditure..M...+Expenditure.Per.Capita+Exports+Exports...GDP+Imports+Imports...GDP+CO2.Tons.per.capita, data = data4, importance = TRUE)
+print(randomf)
+```
+
+Random Forest Results:
+
+- Mean Squared Residual: 0.00995276
+- % Var explained: 95.3
+
+Looking at the information above, we can compare the performance of the two models. The Random Forest model explains 95.3% of the variance in the data, which suggests strong predictive performance. On the other hand, the Logistic Regression model also performs well, but it is limited by its assumption of linearity between the predictors and the log-odds of being developed. This limitation does not take away from the strength of the Logistic Regression model, as it provides valuable insights into the relationships between the variables.
+Thus, based on the variance explained and predictive accuracy, Random Forest likely outperforms Logistic Regression. However, Logistic Regression remains highly useful for understanding the direction and significance of each variable in determining whether a country is developed or developing. 
+
+
