@@ -1,3 +1,3 @@
 **Economic-and-Social-Status-Data-Analysis**
 
-Answering research questions with big data usage.
+R: Answering research questions with big data usage.
